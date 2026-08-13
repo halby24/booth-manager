@@ -1,0 +1,12 @@
+workspace:
+  name: atelier
+  kind: archive
+  owner_intent: >
+    Old repo, name mismatch — GitHub remote is booth-manager, not
+    "atelier"; unrelated to the THESEUS "atelier" chat channel
+    referenced elsewhere in this corpus. Kept dormant, no active
+    development (stalest active-git repo in the ~/workspaces survey).
+  tier: archive
+  writers:
+    - "none observed"
+  kernel_registration: not-desired
