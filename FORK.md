@@ -24,6 +24,7 @@ git diff upstream/main..HEAD
 | 6 | VCC自動パッケージが `'folder'` KeyError で失敗 | パッケージ処理にアイテムフォルダを渡す（`organizer.py`） |
 | 7 | 404 のアイテムで空フォルダが残る | スクレイプ失敗時に空フォルダを削除して例外を伝播 |
 | 8 | ダウンロードが `object NoneType can't be used in 'await' expression` で失敗 | async API の使い方（`set_default_timeout` / `expect_download`）を修正 |
+| 9 | アイテム取込（`booth-assets-manager`）が全件 404 で失敗 | BOOTH はロケール無しの `booth.pm/items/<id>` を 404 にしたため、`/ja/items/<id>`（既存URLは保持）へ正規化（`organizer.py`） |
 
 ## セットアップ
 
@@ -38,6 +39,18 @@ uv pip install --python .venv/bin/python -r requirements.txt -e .
 
 `playwright install` でブラウザ（約100MB）が `~/Library/Caches/ms-playwright` に入ります。
 `HOME` を差し替えて動かす場合は `PLAYWRIGHT_BROWSERS_PATH` の指定が必要です。
+
+### Windows
+
+```powershell
+uv venv --python 3.12 .venv
+uv pip install --python .venv\Scripts\python.exe -r requirements.txt -e .
+.venv\Scripts\python.exe -m playwright install chromium
+```
+
+コンソールのコードページが cp932 だと絵文字の出力で `UnicodeEncodeError` になるため、
+リポジトリ直下のラッパー（`booth-auth.cmd` / `booth-assets-manager.cmd` / `booth-vcc.cmd`）を使うか
+`PYTHONIOENCODING=utf-8` を設定してください。
 
 ## 使い方
 

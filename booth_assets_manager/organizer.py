@@ -20,8 +20,26 @@ def sanitize_filename(name):
 
 def extract_item_id(url):
     """Extracts the item ID from a Booth URL (handles both /items/<id> and /en/items/<id> patterns)."""
-    match = re.search(r'/(?:en/)?items/(\d+)', url)
+    match = re.search(r'/(?:en/|ja/)?items/(\d+)', url)
     return match.group(1) if match else "UnknownID"
+
+DEFAULT_LOCALE = "ja"
+
+def item_url(item_id):
+    """Builds a Booth item URL. BOOTH 404s on locale-less /items/<id>, so always include a locale."""
+    return f"https://booth.pm/{DEFAULT_LOCALE}/items/{item_id}"
+
+def normalize_item_url(url):
+    """Adds a locale prefix (/ja/ or /en/) to BOOTH item URLs.
+
+    BOOTH item pages now return 404 without a locale prefix, e.g.
+    https://booth.pm/items/2280136 -> https://booth.pm/ja/items/2280136
+    """
+    url = (url or "").strip()
+    match = re.match(r'^(?:https?://)?(?:www\.)?booth\.pm/(?:(en|ja)/)?items/(\d+)', url, re.I)
+    if match:
+        return f"https://booth.pm/{match.group(1) or DEFAULT_LOCALE}/items/{match.group(2)}"
+    return url
 
 def scrape_metadata(url):
     """
@@ -34,6 +52,7 @@ def scrape_metadata(url):
         'Accept-Language': 'en-US,en;q=0.5',
         'Connection': 'keep-alive',
     }
+    url = normalize_item_url(url)
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         raise Exception(f"Failed to load page: {url} (Status code: {response.status_code})")
@@ -228,8 +247,7 @@ def parse_input_file(file_path):
                 if url:
                     items.append({"url": url, "title": title})
                 elif item_id:
-                    constructed_url = f"https://booth.pm/items/{item_id}"
-                    items.append({"url": constructed_url, "title": title})
+                    items.append({"url": item_url(item_id), "title": title})
                 else:
                     print("Skipping row, no URL or ID found.")
     elif ext == ".json":
@@ -246,8 +264,7 @@ def parse_input_file(file_path):
                         if url:
                             items.append({"url": url, "title": title})
                         elif item_id:
-                            constructed_url = f"https://booth.pm/items/{item_id}"
-                            items.append({"url": constructed_url, "title": title})
+                            items.append({"url": item_url(item_id), "title": title})
                         else:
                             print("Skipping object, no URL or ID found.")
                 else:
@@ -262,10 +279,9 @@ def parse_input_file(file_path):
                 if not line:
                     continue
                 if line.lower().startswith("http"):
-                    items.append({"url": line, "title": ""})
+                    items.append({"url": normalize_item_url(line), "title": ""})
                 else:
-                    constructed_url = f"https://booth.pm/items/{line}"
-                    items.append({"url": constructed_url, "title": ""})
+                    items.append({"url": item_url(line), "title": ""})
     return items
 
 def add_items(input_file, force_update):
