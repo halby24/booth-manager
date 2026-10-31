@@ -1,5 +1,7 @@
 # Booth Assets Manager
 
+> **Maintained fork by [@halby24](https://github.com/halby24).** The upstream v0.3.0 no longer works with the current BOOTH site. See [FORK.md](FORK.md) for the fixes applied in this fork (Japanese).
+
 [![Python 3.6+](https://img.shields.io/badge/python-3.6+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
