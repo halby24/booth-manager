@@ -52,6 +52,20 @@ uv pip install --python .venv\Scripts\python.exe -r requirements.txt -e .
 リポジトリ直下のラッパー（`booth-auth.cmd` / `booth-assets-manager.cmd` / `booth-vcc.cmd`）を使うか
 `PYTHONIOENCODING=utf-8` を設定してください。
 
+リポジトリ直下をユーザー PATH に追加すれば、どこからでも `booth-auth` / `booth-assets-manager` / `booth-vcc` を実行できます。
+
+```powershell
+$dir = "J:\Apps\utils\booth-manager"
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if (($userPath -split ';') -notcontains $dir) {
+  [Environment]::SetEnvironmentVariable("Path", $userPath.TrimEnd(';') + ';' + $dir, "User")
+}
+```
+
+ラッパーは `BOOTH_ITEMS_DIR` / `BOOTH_DOWNLOADS_DIR` をリポジトリ直下に設定するので、
+別のディレクトリから実行しても `BoothItems` / `BoothDownloads` はリポジトリ側にまとまります
+（DB は常に `booth_assets_manager/booth.db`）。
+
 ## 使い方
 
 ```bash

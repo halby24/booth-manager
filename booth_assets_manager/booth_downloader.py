@@ -65,7 +65,11 @@ class BoothDownloader:
             self.cookies_path = os.path.join(
                 os.path.dirname(settings.config_path), "booth_cookies.json"
             )
-        self.download_base_dir = settings.get("download_directory") or "BoothDownloads"
+        self.download_base_dir = (
+            settings.get("download_directory")
+            or os.environ.get("BOOTH_DOWNLOADS_DIR")
+            or "BoothDownloads"
+        )
         os.makedirs(self.download_base_dir, exist_ok=True)
 
     def sanitize_filename(self, filename):

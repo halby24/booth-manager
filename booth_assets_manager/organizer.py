@@ -12,7 +12,8 @@ from .settings import settings
 from .vcc_integration import package_item, generate_repository_index
 
 # Global constants
-BASE_DIR = "BoothItems"
+# BOOTH_ITEMS_DIR lets the launchers keep item folders next to the repo instead of the cwd.
+BASE_DIR = os.environ.get("BOOTH_ITEMS_DIR") or "BoothItems"
 
 def sanitize_filename(name):
     """Sanitize a string to be used as a safe filename."""
