@@ -42,17 +42,27 @@ class BrowserAuth:
                 login_success = False
                 
                 for _ in range(self.auth_timeout):
-                    # Check if we're on a page that indicates successful login
-                    current_url = page.url
-                    if "/users/sign_in" not in current_url and "/sign_up" not in current_url:
-                        # Additional check - look for user account elements
-                        user_menu = await page.query_selector(".user-dropdown-menu")
-                        if user_menu:
-                            login_success = True
-                            break
+                    # Check if we're on a page that indicates successful login.
+                    # A navigation can invalidate the page handle mid-check, so
+                    # treat those failures as "not yet".
+                    try:
+                        current_url = page.url
+                        if "/users/sign_in" not in current_url and "/sign_up" not in current_url:
+                            # Additional check - look for user account elements
+                            user_menu = await page.query_selector(".user-dropdown-menu")
+                            if user_menu:
+                                login_success = True
+                                break
+                    except Exception:
+                        pass
                     
                     # Wait a second before checking again
                     await asyncio.sleep(1)
+                
+                # Fallback: Booth changes its markup regularly, so confirm the
+                # captured cookies actually authenticate us before giving up.
+                if not login_success:
+                    login_success = await self._context_is_authenticated(context)
                 
                 if not login_success:
                     print("Login timed out or was unsuccessful.")
@@ -82,7 +92,7 @@ class BrowserAuth:
                 return False
     
     def is_authenticated(self):
-        """Check if we have valid authentication cookies."""
+        """Check if we have stored authentication cookies."""
         if not os.path.exists(self.cookies_path):
             return False
         
@@ -91,16 +101,30 @@ class BrowserAuth:
             with open(self.cookies_path, 'r', encoding='utf-8') as f:
                 cookies = json.load(f)
             
-            # Check for required Booth cookies
+            # Booth names its session cookie "_plaza_session_<random>", so match
+            # on the prefix instead of an exact name.
             booth_cookies = [c for c in cookies if 'booth.pm' in c.get('domain', '')]
-            session_cookies = [c for c in booth_cookies if c.get('name') == '_plaza_session']
+            session_cookies = [c for c in booth_cookies
+                               if c.get('name', '').startswith('_plaza_session')]
             
             return len(session_cookies) > 0
             
         except Exception as e:
             print(f"Error checking authentication: {e}")
             return False
-    
+
+    async def _context_is_authenticated(self, context):
+        """Verify authentication inside an existing browser context."""
+        try:
+            page = await context.new_page()
+            await page.goto('https://booth.pm/settings', wait_until='domcontentloaded')
+            is_auth = '/users/sign_in' not in page.url
+            await page.close()
+            return is_auth
+        except Exception as e:
+            print(f"Error verifying authentication: {e}")
+            return False
+
     async def verify_auth_status(self):
         """
         Verify if the saved cookies still provide authentication.

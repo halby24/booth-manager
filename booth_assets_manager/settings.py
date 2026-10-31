@@ -63,6 +63,15 @@ class Settings:
             print(f"Error saving config to {self.config_path}: {e}")
             return False
     
+    def get(self, key, default=None):
+        """Get an arbitrary setting value."""
+        return self.config.get(key, default)
+
+    def set(self, key, value):
+        """Set an arbitrary setting value (call save() to persist it)."""
+        self.config[key] = value
+        return True
+
     def get_repository_path(self):
         """Get the repository path from config or default."""
         return self.config.get("repository_path", self._default_config()["repository_path"])

@@ -113,6 +113,43 @@ def download_images(metadata, folder_path, force_update=False):
     metadata["local_images"] = local_image_paths
     return metadata
 
+def find_existing_item_folder(item_id):
+    """Return the existing item folder for an item ID, if one has metadata."""
+    import glob
+    for candidate in sorted(glob.glob(os.path.join(BASE_DIR, f"{item_id}_*"))):
+        if os.path.isdir(candidate) and os.path.exists(os.path.join(candidate, "metadata.json")):
+            return candidate
+    return None
+
+def rename_item_folder(folder_path, item_id, title):
+    """Rename an item folder so it reflects the scraped title and fix stored image paths."""
+    title = (title or "").strip()
+    if not title:
+        return folder_path
+    desired = os.path.join(BASE_DIR, f"{item_id}_{sanitize_filename(title)}")
+    if os.path.abspath(desired) == os.path.abspath(folder_path) or os.path.exists(desired):
+        return folder_path
+    try:
+        os.rename(folder_path, desired)
+    except OSError as e:
+        print(f"Could not rename {folder_path} to {desired}: {e}")
+        return folder_path
+    meta_file = os.path.join(desired, "metadata.json")
+    if os.path.exists(meta_file):
+        try:
+            with open(meta_file, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            old_prefix = folder_path.rstrip(os.sep) + os.sep
+            new_prefix = desired.rstrip(os.sep) + os.sep
+            meta["local_images"] = [
+                p.replace(old_prefix, new_prefix) for p in meta.get("local_images", [])
+            ]
+            with open(meta_file, "w", encoding="utf-8") as f:
+                json.dump(meta, f, indent=4, ensure_ascii=False, sort_keys=True)
+        except (OSError, json.JSONDecodeError):
+            pass
+    return desired
+
 def ensure_item_folder(metadata, force_update=False):
     """
     Ensures that a folder exists for the given item.
@@ -122,11 +159,11 @@ def ensure_item_folder(metadata, force_update=False):
     """
     # First, get the item ID from the URL
     item_id = extract_item_id(metadata["url"])
-    # Use a temporary title if not provided
-    title = metadata.get("title", "Untitled")
-    
-    folder_name = f"{item_id}_{sanitize_filename(title)}"
-    folder_path = os.path.join(BASE_DIR, folder_name)
+    # Reuse an existing folder for this item (the title may have been empty on a
+    # previous run), otherwise build the name from whatever title we have.
+    title = metadata.get("title") or ""
+    folder_name = f"{item_id}_{sanitize_filename(title)}" if title else f"{item_id}_"
+    folder_path = find_existing_item_folder(item_id) or os.path.join(BASE_DIR, folder_name)
     os.makedirs(folder_path, exist_ok=True)
     meta_file = os.path.join(folder_path, "metadata.json")
     
@@ -134,18 +171,28 @@ def ensure_item_folder(metadata, force_update=False):
         print(f"Scraping metadata for item {item_id}...")
         try:
             new_metadata = scrape_metadata(metadata["url"])
-            # Download images as part of the metadata
-            new_metadata = download_images(new_metadata, folder_path, force_update=force_update)
-            with open(meta_file, "w", encoding="utf-8") as f:
-                json.dump(new_metadata, f, indent=4, ensure_ascii=False, sort_keys=True)
-            return new_metadata, folder_path
         except Exception as e:
+            # Drop the empty placeholder folder so failed imports leave no junk.
+            if not os.path.exists(meta_file) and not os.listdir(folder_path):
+                os.rmdir(folder_path)
             print(f"Error scraping metadata for {metadata['url']}: {e}")
-            return metadata, folder_path
+            raise
+        new_metadata.setdefault("images", [])
+        # Name the folder after the scraped title rather than the input file.
+        folder_path = rename_item_folder(folder_path, item_id, new_metadata.get("title"))
+        meta_file = os.path.join(folder_path, "metadata.json")
+        new_metadata = download_images(new_metadata, folder_path, force_update=force_update)
+        with open(meta_file, "w", encoding="utf-8") as f:
+            json.dump(new_metadata, f, indent=4, ensure_ascii=False, sort_keys=True)
+        return new_metadata, folder_path
     else:
         # Load existing metadata from the file.
         with open(meta_file, "r", encoding="utf-8") as f:
             existing_metadata = json.load(f)
+        existing_metadata.setdefault("images", [])
+        # Keep the folder name in sync with the stored title.
+        folder_path = rename_item_folder(folder_path, item_id, existing_metadata.get("title"))
+        meta_file = os.path.join(folder_path, "metadata.json")
         # If images haven't been downloaded yet, download them.
         if force_update or "local_images" not in existing_metadata:
             existing_metadata = download_images(existing_metadata, folder_path, force_update=force_update)
@@ -253,7 +300,8 @@ def add_items(input_file, force_update):
             # Create VCC package if enabled
             if settings.is_vcc_enabled() and settings.get_auto_package_new_items():
                 try:
-                    if package_item(metadata, settings.get_repository_path(), db):
+                    package_metadata = dict(metadata, folder=folder_path)
+                    if package_item(package_metadata, settings.get_repository_path(), db):
                         print(f"Created VCC package for item {metadata['item_id']}.")
                 except Exception as e:
                     print(f"Failed to create VCC package for item {metadata['item_id']}: {e}")
